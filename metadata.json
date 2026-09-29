@@ -1,0 +1,8 @@
+{
+  "name": "Operation Rakshak 3.0",
+  "description": "Emergency Response and Live Monitoring Dashboard",
+  "requestFramePermissions": [
+    "geolocation"
+  ],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}

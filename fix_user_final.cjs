@@ -1,0 +1,70 @@
+const fs = require('fs');
+
+// 1. Restore from the string inside patch_user_dash_realtime.cjs
+let originalScript = fs.readFileSync('patch_user_dash_realtime.cjs', 'utf8');
+let match = originalScript.match(/const newContent = `([\s\S]*?)`;\nfs\.writeFileSync/);
+if (match && match[1]) {
+  let content = match[1];
+
+  // 2. Add MapContainer imports
+  content = content.replace("import { motion } from 'framer-motion';", "import { motion } from 'framer-motion';\nimport { MapContainer, TileLayer, Marker, Popup } from 'react-leaflet';\nimport L from 'leaflet';\nimport 'leaflet/dist/leaflet.css';\n");
+
+  const amboIcon = `
+// Leaflet icon fix
+delete (L.Icon.Default.prototype as any)._getIconUrl;
+L.Icon.Default.mergeOptions({
+  iconRetinaUrl: 'https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.7.1/images/marker-icon-2x.png',
+  iconUrl: 'https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.7.1/images/marker-icon.png',
+  shadowUrl: 'https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.7.1/images/marker-shadow.png',
+});
+
+const amboIcon = new L.DivIcon({
+  className: 'custom-leaflet-icon',
+  html: '<div style="background-color: #ef4444; width: 16px; height: 16px; border-radius: 50%; border: 2px solid white; box-shadow: 0 0 8px rgba(239, 68, 68, 0.8); animation: pulse 1s infinite;"></div>',
+  iconSize: [16, 16],
+  iconAnchor: [8, 8]
+});
+`;
+  content = content.replace("export default function UserDashboard() {", amboIcon + "\nexport default function UserDashboard() {");
+
+  // 3. Replace the fake map with Leaflet map
+  const mapStart = `{/* Fake Map UI */}`;
+  const mapEnd = `</div>\n             </div>\n          </div>\n          {/* Action Strip */}`;
+  
+  // We'll use a regex to replace everything between mapStart and mapEnd.
+  const regex = /\{\/\* Fake Map UI \*\/\}([\s\S]*?)<\/div>\s*<\/div>\s*<\/div>\s*\{\/\* Action Strip \*\/\}/;
+  
+  const mapHTML = `
+             <div className="absolute inset-0 bg-[#020617] z-0">
+                {isEmergencyActive ? (
+                   <MapContainer center={[28.6139, 77.2090]} zoom={13} style={{ height: '100%', width: '100%', background: '#020617' }}>
+                      <TileLayer url="https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png" />
+                      <Marker position={[28.6139, 77.2090]} icon={amboIcon}>
+                        <Popup>Ambulance En Route</Popup>
+                      </Marker>
+                   </MapContainer>
+                ) : (
+                   <MapContainer center={[28.6139, 77.2090]} zoom={13} style={{ height: '100%', width: '100%', background: '#020617' }}>
+                      <TileLayer url="https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png" />
+                   </MapContainer>
+                )}
+                <div className="absolute top-4 left-4 right-4 flex justify-between pointer-events-none z-[1000]">
+                   <div className="px-4 py-2 bg-slate-900/80 backdrop-blur-md rounded-xl border border-slate-700/50 text-xs font-medium text-slate-300 shadow-lg">
+                     Last updated: Just now
+                   </div>
+                   <div className={\`px-4 py-2 \${isEmergencyActive ? 'bg-red-500/10 border-red-500/30 text-red-400' : 'bg-blue-500/10 border-blue-500/20 text-blue-400'} backdrop-blur-md rounded-xl border text-xs font-bold shadow-lg uppercase tracking-wider\`}>
+                     {isEmergencyActive ? 'EMERGENCY MODE' : 'Tracking Active'}
+                   </div>
+                </div>
+             </div>
+          </div>
+          {/* Action Strip */}`;
+          
+  content = content.replace(regex, mapHTML);
+  
+  // Un-escape the $ in strings that might have been lost if I used template literal in the patch script? No, in patch_user_dash_realtime.cjs the \${...} was escaped properly.
+  // Actually, string replace handles it fine.
+
+  fs.writeFileSync('src/pages/user/UserDashboard.tsx', content);
+  console.log("Successfully replaced map.");
+}
